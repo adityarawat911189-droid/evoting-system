@@ -31,3 +31,21 @@ build/
 
 ### VS Code ###
 .vscode/
+# Compiled output
+target/
+*.class
+
+# IntelliJ files
+.idea/
+*.iml
+out/
+
+# Sensitive configuration (contains passwords)
+src/main/resources/application.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

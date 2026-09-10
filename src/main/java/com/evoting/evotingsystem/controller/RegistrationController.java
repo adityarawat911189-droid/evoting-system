@@ -1,5 +1,5 @@
 package com.evoting.evotingsystem.controller;
-
+import com.evoting.evotingsystem.dto.SetCredentialsRequestDto;
 import com.evoting.evotingsystem.dto.RegisterVerifyRequestDto;
 import com.evoting.evotingsystem.dto.RegisterVerifyResponseDto;
 import com.evoting.evotingsystem.service.VoterService;
@@ -14,6 +14,27 @@ public class RegistrationController {
 
     @Autowired
     private VoterService voterService;
+
+    @PostMapping("/set-credentials")
+    public ResponseEntity<RegisterVerifyResponseDto> setCredentials(
+            @Valid @RequestBody SetCredentialsRequestDto request) {
+
+        boolean success = voterService.setPasswordAndPin(
+                request.getEpicNumber(),
+                request.getPassword(),
+                request.getPin()
+        );
+
+        if (success) {
+            return ResponseEntity.ok(
+                    new RegisterVerifyResponseDto(true, "Password and PIN set successfully. Registration complete.")
+            );
+        } else {
+            return ResponseEntity.badRequest().body(
+                    new RegisterVerifyResponseDto(false, "Voter not found.")
+            );
+        }
+    }
 
     @PostMapping("/verify")
     public ResponseEntity<RegisterVerifyResponseDto> verifyVoter(

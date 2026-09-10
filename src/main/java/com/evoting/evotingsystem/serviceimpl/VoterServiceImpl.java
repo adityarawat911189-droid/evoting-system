@@ -19,6 +19,26 @@ public class VoterServiceImpl implements VoterService {
     private VoterDao voterDao;
 
     @Override
+    public boolean validateLogin(String epicNumber, String rawPassword) {
+
+        Optional<Voter> voterOpt = voterDao.findByEpicNumber(epicNumber);
+
+        if (voterOpt.isEmpty()) {
+            return false;
+        }
+
+        Voter voter = voterOpt.get();
+
+        if (voter.getPasswordHash() == null) {
+            return false;
+        }
+
+        String inputHash = hashValue(rawPassword);
+
+        return inputHash.equals(voter.getPasswordHash());
+    }
+
+    @Override
     public boolean verifyVoterIdentity(String epicNumber, String aadhaarNumber, String dateOfBirth) {
 
         String aadhaarHash = hashValue(aadhaarNumber);
@@ -39,6 +59,28 @@ public class VoterServiceImpl implements VoterService {
         if (!voter.getIsEligible()) {
             return false;
         }
+
+        return true;
+    }
+
+    @Override
+    public boolean setPasswordAndPin(String epicNumber, String rawPassword, String rawPin) {
+
+        Optional<Voter> voterOpt = voterDao.findByEpicNumber(epicNumber);
+
+        if (voterOpt.isEmpty()) {
+            return false;
+        }
+
+        Voter voter = voterOpt.get();
+
+        String passwordHash = hashValue(rawPassword);
+        String pinHash = hashValue(rawPin);
+
+        voter.setPasswordHash(passwordHash);
+        voter.setPinHash(pinHash);
+
+        voterDao.save(voter);
 
         return true;
     }

@@ -13,7 +13,14 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/register/**", "/api/otp/**").permitAll()                        .anyRequest().authenticated()
+                        .requestMatchers(
+                                "/api/register/**",
+                                "/api/otp/**",
+                                "/api/auth/**",
+                                "/api/vote-token/**",
+                                "/api/vote/**"
+                        ).permitAll()
+                        .anyRequest().authenticated()
                 );
 
         return http.build();

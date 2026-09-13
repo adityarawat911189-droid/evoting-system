@@ -1,6 +1,7 @@
 package com.evoting.evotingsystem.dao;
 
 import com.evoting.evotingsystem.pojo.Vote;
+import java.util.List;
 import java.util.Optional;
 
 public interface VoteDao {
@@ -10,4 +11,6 @@ public interface VoteDao {
     Optional<Vote> findLatestVote();
 
     long countByCandidateId(String candidateId);
+
+    List<Vote> findAllOrderedById();
 }

@@ -29,4 +29,15 @@ public class VoteController {
             return ResponseEntity.badRequest().body(result);
         }
     }
+
+    @GetMapping("/verify-ledger")
+    public ResponseEntity<String> verifyLedger() {
+        boolean isValid = voteService.verifyLedgerIntegrity();
+
+        if (isValid) {
+            return ResponseEntity.ok("Ledger integrity verified. No tampering detected.");
+        } else {
+            return ResponseEntity.status(500).body("WARNING: Ledger integrity compromised!");
+        }
+    }
 }

@@ -109,4 +109,21 @@ public class VoteServiceImpl implements VoteService {
         query.setParameter("epicNumber", epicNumber);
         return query.executeUpdate() > 0;
     }
+
+    @Override
+    public boolean verifyLedgerIntegrity() {
+
+        java.util.List<Vote> allVotes = voteDao.findAllOrderedById();
+
+        String expectedPreviousHash = "GENESIS";
+
+        for (Vote vote : allVotes) {
+            if (!vote.getPreviousHash().equals(expectedPreviousHash)) {
+                return false;
+            }
+            expectedPreviousHash = vote.getVoteHash();
+        }
+
+        return true;
+    }
 }

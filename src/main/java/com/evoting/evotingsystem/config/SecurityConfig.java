@@ -18,7 +18,8 @@ public class SecurityConfig {
                                 "/api/otp/**",
                                 "/api/auth/**",
                                 "/api/vote-token/**",
-                                "/api/vote/**"
+                                "/api/vote/**",
+                                "/api/face/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

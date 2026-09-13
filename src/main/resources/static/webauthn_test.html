@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebAuthn Test - E-Voting System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input, button { padding: 10px; margin: 10px 0; width: 100%; box-sizing: border-box; }
+        button { background: #4285f4; color: white; border: none; cursor: pointer; font-size: 16px; }
+        #authBtn { background: #34a853; }
+        #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; white-space: pre-wrap; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h2>WebAuthn Fingerprint Test</h2>
+
+    <label>EPIC Number:</label>
+    <input type="text" id="epicNumber" value="EVT1000000">
+
+    <button onclick="registerFingerprint()">1. Register Fingerprint</button>
+    <button id="authBtn" onclick="authenticateFingerprint()">2. Authenticate (Vote-time check)</button>
+
+    <div id="result">Result will appear here...</div>
+
+    <script>
+        function base64UrlToBuffer(base64Url) {
+            const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+            const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            const buffer = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; i++) {
+                buffer[i] = rawData.charCodeAt(i);
+            }
+            return buffer;
+        }
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = '';
+            for (const b of bytes) str += String.fromCharCode(b);
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        async function registerFingerprint() {
+            const resultDiv = document.getElementById('result');
+            const epicNumber = document.getElementById('epicNumber').value;
+
+            try {
+                resultDiv.textContent = 'Fetching registration options...';
+
+                const optionsResponse = await fetch(
+                    `http://localhost:8080/api/webauthn/register/options?epicNumber=${epicNumber}`
+                );
+                const options = await optionsResponse.json();
+
+                resultDiv.textContent = 'Waiting for fingerprint...';
+
+                const publicKeyOptions = {
+                    challenge: base64UrlToBuffer(options.challenge),
+                    rp: { name: options.rpName, id: options.rpId },
+                    user: {
+                        id: base64UrlToBuffer(bufferToBase64Url(new TextEncoder().encode(epicNumber))),
+                        name: options.userName,
+                        displayName: options.userName
+                    },
+                    pubKeyCredParams: [
+                        { type: "public-key", alg: -7 },
+                        { type: "public-key", alg: -257 }
+                    ],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "platform",
+                        userVerification: "required"
+                    },
+                    timeout: 60000,
+                    attestation: "direct"
+                };
+
+                const credential = await navigator.credentials.create({
+                    publicKey: publicKeyOptions
+                });
+
+                const credentialId = bufferToBase64Url(credential.rawId);
+                const attestationObject = bufferToBase64Url(credential.response.attestationObject);
+                const clientDataJSON = bufferToBase64Url(credential.response.clientDataJSON);
+
+                window.lastCredentialId = credentialId;
+
+                resultDiv.textContent = 'Fingerprint captured! Sending to server...';
+
+                const verifyResponse = await fetch('http://localhost:8080/api/webauthn/register/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        epicNumber: epicNumber,
+                        credentialId: credentialId,
+                        attestationObject: attestationObject,
+                        clientDataJSON: clientDataJSON
+                    })
+                });
+
+                const verifyResult = await verifyResponse.text();
+                resultDiv.textContent = 'Server response: ' + verifyResult + '\n\nCredential ID (saved automatically for auth test):\n' + credentialId;
+
+            } catch (err) {
+                resultDiv.textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        }
+
+        async function authenticateFingerprint() {
+            const resultDiv = document.getElementById('result');
+            const epicNumber = document.getElementById('epicNumber').value;
+
+            try {
+                resultDiv.textContent = 'Fetching authentication options...';
+
+                const optionsResponse = await fetch(
+                    `http://localhost:8080/api/webauthn/authenticate/options?epicNumber=${epicNumber}`
+                );
+                const options = await optionsResponse.json();
+
+                resultDiv.textContent = 'Waiting for fingerprint (authenticate)...';
+
+                const publicKeyOptions = {
+                    challenge: base64UrlToBuffer(options.challenge),
+                    rpId: options.rpId,
+                    userVerification: "required",
+                    timeout: 60000
+                };
+
+                if (window.lastCredentialId) {
+                    publicKeyOptions.allowCredentials = [{
+                        type: "public-key",
+                        id: base64UrlToBuffer(window.lastCredentialId)
+                    }];
+                }
+
+                const assertion = await navigator.credentials.get({
+                    publicKey: publicKeyOptions
+                });
+
+                const credentialId = bufferToBase64Url(assertion.rawId);
+                const authenticatorData = bufferToBase64Url(assertion.response.authenticatorData);
+                const clientDataJSON = bufferToBase64Url(assertion.response.clientDataJSON);
+                const signature = bufferToBase64Url(assertion.response.signature);
+
+                resultDiv.textContent = 'Fingerprint captured! Verifying...';
+
+                const verifyResponse = await fetch('http://localhost:8080/api/webauthn/authenticate/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        epicNumber: epicNumber,
+                        credentialId: credentialId,
+                        authenticatorData: authenticatorData,
+                        clientDataJSON: clientDataJSON,
+                        signature: signature
+                    })
+                });
+
+                const verifyResult = await verifyResponse.text();
+                resultDiv.textContent = 'Server response: ' + verifyResult;
+
+            } catch (err) {
+                resultDiv.textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

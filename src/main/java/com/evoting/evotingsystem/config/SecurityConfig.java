@@ -21,7 +21,9 @@ public class SecurityConfig {
                                 "/api/vote/**",
                                 "/api/face/**",
                                 "/api/election/**",
-                                "/api/results/**"
+                                "/api/results/**",
+                                "/api/webauthn/**",
+                                "/webauthn_test.html"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

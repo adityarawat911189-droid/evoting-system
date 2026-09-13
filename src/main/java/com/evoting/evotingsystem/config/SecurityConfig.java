@@ -19,7 +19,9 @@ public class SecurityConfig {
                                 "/api/auth/**",
                                 "/api/vote-token/**",
                                 "/api/vote/**",
-                                "/api/face/**"
+                                "/api/face/**",
+                                "/api/election/**",
+                                "/api/results/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );

@@ -20,7 +20,12 @@ public class VoteController {
         String result = voteService.castVote(
                 request.getToken(),
                 request.getCandidateId(),
-                request.getPin()
+                request.getPin(),
+                null,
+                request.getCredentialId(),
+                request.getAuthenticatorData(),
+                request.getClientDataJSON(),
+                request.getSignature()
         );
 
         if (result.equals("Vote cast successfully.")) {

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vote Cast Test - E-Voting System</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input, button { padding: 10px; margin: 8px 0; width: 100%; box-sizing: border-box; }
+        button { background: #4285f4; color: white; border: none; cursor: pointer; font-size: 16px; }
+        #loginBtn { background: #666; }
+        #tokenBtn { background: #f4a825; }
+        #voteBtn { background: #34a853; }
+        #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; white-space: pre-wrap; word-break: break-all; }
+        hr { margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <h2>Full Vote Cast Test</h2>
+
+    <label>EPIC Number:</label>
+    <input type="text" id="epicNumber" value="EVT1000000">
+    <label>Password:</label>
+    <input type="text" id="password" value="MySecurePass123">
+    <button id="loginBtn" onclick="login()">1. Login</button>
+
+    <hr>
+
+    <button id="tokenBtn" onclick="getVotingToken()">2. Get Voting Token</button>
+
+    <hr>
+
+    <label>Candidate ID:</label>
+    <input type="text" id="candidateId" value="CAND001">
+    <label>PIN:</label>
+    <input type="text" id="pin" value="1234">
+    <button id="voteBtn" onclick="castVote()">3. Verify Fingerprint & Cast Vote</button>
+
+    <div id="result">Result will appear here...</div>
+
+    <script>
+        let jwtToken = '';
+        let votingToken = '';
+
+        function base64UrlToBuffer(base64Url) {
+            const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+            const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = atob(base64);
+            const buffer = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; i++) buffer[i] = rawData.charCodeAt(i);
+            return buffer;
+        }
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let str = '';
+            for (const b of bytes) str += String.fromCharCode(b);
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        async function login() {
+            const resultDiv = document.getElementById('result');
+            const epicNumber = document.getElementById('epicNumber').value;
+            const password = document.getElementById('password').value;
+
+            resultDiv.textContent = 'Logging in...';
+
+            const response = await fetch('http://localhost:8080/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber, password })
+            });
+            const data = await response.json();
+
+            if (data.token) {
+                jwtToken = data.token;
+                resultDiv.textContent = 'Login successful! JWT stored.';
+            } else {
+                resultDiv.textContent = 'Login failed: ' + JSON.stringify(data);
+            }
+        }
+
+        async function getVotingToken() {
+            const resultDiv = document.getElementById('result');
+
+            if (!jwtToken) {
+                resultDiv.textContent = 'Please login first.';
+                return;
+            }
+
+            resultDiv.textContent = 'Requesting voting token...';
+
+            const response = await fetch('http://localhost:8080/api/vote-token/issue', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + jwtToken }
+            });
+            const token = await response.text();
+
+            votingToken = token;
+            resultDiv.textContent = 'Voting token received: ' + token;
+        }
+
+        async function castVote() {
+            const resultDiv = document.getElementById('result');
+            const epicNumber = document.getElementById('epicNumber').value;
+            const candidateId = document.getElementById('candidateId').value;
+            const pin = document.getElementById('pin').value;
+
+            if (!votingToken) {
+                resultDiv.textContent = 'Please get a voting token first.';
+                return;
+            }
+
+            try {
+                resultDiv.textContent = 'Fetching fingerprint authentication options...';
+
+                const optionsResponse = await fetch(
+                    `http://localhost:8080/api/webauthn/authenticate/options?epicNumber=${epicNumber}`
+                );
+                const options = await optionsResponse.json();
+
+                resultDiv.textContent = 'Waiting for fingerprint...';
+
+                const publicKeyOptions = {
+                    challenge: base64UrlToBuffer(options.challenge),
+                    rpId: options.rpId,
+                    userVerification: "required",
+                    timeout: 60000
+                };
+
+                const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
+
+                const credentialId = bufferToBase64Url(assertion.rawId);
+                const authenticatorData = bufferToBase64Url(assertion.response.authenticatorData);
+                const clientDataJSON = bufferToBase64Url(assertion.response.clientDataJSON);
+                const signature = bufferToBase64Url(assertion.response.signature);
+
+                resultDiv.textContent = 'Fingerprint captured! Casting vote...';
+
+                const voteResponse = await fetch('http://localhost:8080/api/vote/cast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: votingToken,
+                        candidateId: candidateId,
+                        pin: pin,
+                        credentialId: credentialId,
+                        authenticatorData: authenticatorData,
+                        clientDataJSON: clientDataJSON,
+                        signature: signature
+                    })
+                });
+
+                const voteResult = await voteResponse.text();
+                resultDiv.textContent = 'Vote result: ' + voteResult;
+
+            } catch (err) {
+                resultDiv.textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -33,9 +33,14 @@ public class VoteServiceImpl implements VoteService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    @Autowired
+    private com.evoting.evotingsystem.service.WebAuthnService webAuthnService;
+
     @Override
     @Transactional
-    public String castVote(String rawToken, String candidateId, String pin) {
+    public String castVote(String rawToken, String candidateId, String pin,
+                           String epicNumberForFingerprint, String credentialId,
+                           String authenticatorData, String clientDataJSON, String signature) {
 
         String tokenHash = HashUtil.sha256(rawToken);
 
@@ -71,6 +76,14 @@ public class VoteServiceImpl implements VoteService {
         String pinHash = HashUtil.sha256(pin);
         if (!pinHash.equals(voter.getPinHash())) {
             return "Incorrect PIN.";
+        }
+
+        boolean fingerprintValid = webAuthnService.verifyAuthentication(
+                epicNumber, credentialId, authenticatorData, clientDataJSON, signature
+        );
+
+        if (!fingerprintValid) {
+            return "Fingerprint verification failed.";
         }
 
         boolean tokenMarked = votingTokenDao.markTokenAsUsed(tokenHash);

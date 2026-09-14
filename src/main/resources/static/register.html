@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .register-card {
+            max-width: 480px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .step-indicator {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        .brand-title {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card shadow-sm register-card">
+    <h4 class="brand-title text-center mb-1">E-Voting System</h4>
+    <p class="text-center text-muted mb-4">Voter Registration</p>
+
+    <div class="step-indicator text-center">Step 1 of 5 &mdash; Identity Verification</div>
+
+    <form id="registerForm">
+        <div class="mb-3">
+            <label for="epicNumber" class="form-label">EPIC Number (Voter ID)</label>
+            <input type="text" class="form-control" id="epicNumber" placeholder="e.g. EVT1000000" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="aadhaarNumber" class="form-label">Aadhaar Number</label>
+            <input type="text" class="form-control" id="aadhaarNumber" placeholder="12-digit Aadhaar number" maxlength="12" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="dateOfBirth" class="form-label">Date of Birth</label>
+            <input type="date" class="form-control" id="dateOfBirth" required>
+        </div>
+
+        <div id="errorMsg" class="alert alert-danger d-none" role="alert"></div>
+        <div id="successMsg" class="alert alert-success d-none" role="alert"></div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">Verify Identity</button>
+    </form>
+
+    <p class="text-center text-muted mt-3 mb-0" style="font-size: 0.85rem;">
+        Already registered? <a href="login.html">Login here</a>
+    </p>
+</div>
+
+<script>
+    document.getElementById('registerForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const errorDiv = document.getElementById('errorMsg');
+        const successDiv = document.getElementById('successMsg');
+        errorDiv.classList.add('d-none');
+        successDiv.classList.add('d-none');
+
+        const epicNumber = document.getElementById('epicNumber').value.trim();
+        const aadhaarNumber = document.getElementById('aadhaarNumber').value.trim();
+        const dateOfBirth = document.getElementById('dateOfBirth').value;
+
+        try {
+            const response = await fetch('http://localhost:8080/api/register/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber, aadhaarNumber, dateOfBirth })
+            });
+
+            const data = await response.json();
+
+            if (data.verified) {
+                successDiv.textContent = data.message + ' Redirecting to OTP verification...';
+                successDiv.classList.remove('d-none');
+
+                sessionStorage.setItem('reg_epicNumber', epicNumber);
+
+                setTimeout(function () {
+                    window.location.href = 'otp.html';
+                }, 1500);
+            } else {
+                errorDiv.textContent = data.message || 'Verification failed.';
+                errorDiv.classList.remove('d-none');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Something went wrong. Please check if the server is running.';
+            errorDiv.classList.remove('d-none');
+            console.error(err);
+        }
+    });
+</script>
+
+</body>
+</html>

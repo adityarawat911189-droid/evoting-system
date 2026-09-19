@@ -8,4 +8,6 @@ public interface VoterService {
 
     boolean validateLogin(String epicNumber, String rawPassword);
 
+    String getConstituencyId(String epicNumber);
+
 }

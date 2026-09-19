@@ -5,11 +5,13 @@ public class LoginResponseDto {
     private boolean success;
     private String message;
     private String token;
+    private String constituencyId;
 
-    public LoginResponseDto(boolean success, String message, String token) {
+    public LoginResponseDto(boolean success, String message, String token, String constituencyId) {
         this.success = success;
         this.message = message;
         this.token = token;
+        this.constituencyId = constituencyId;
     }
 
     public boolean isSuccess() {
@@ -34,5 +36,13 @@ public class LoginResponseDto {
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public String getConstituencyId() {
+        return constituencyId;
+    }
+
+    public void setConstituencyId(String constituencyId) {
+        this.constituencyId = constituencyId;
     }
 }

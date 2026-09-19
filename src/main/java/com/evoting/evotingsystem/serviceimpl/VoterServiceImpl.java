@@ -39,6 +39,12 @@ public class VoterServiceImpl implements VoterService {
     }
 
     @Override
+    public String getConstituencyId(String epicNumber) {
+        Optional<Voter> voterOpt = voterDao.findByEpicNumber(epicNumber);
+        return voterOpt.map(Voter::getConstituencyId).orElse(null);
+    }
+
+    @Override
     public boolean verifyVoterIdentity(String epicNumber, String aadhaarNumber, String dateOfBirth) {
 
         String aadhaarHash = hashValue(aadhaarNumber);

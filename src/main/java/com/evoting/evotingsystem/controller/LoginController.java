@@ -30,12 +30,13 @@ public class LoginController {
 
         if (isValid) {
             String token = jwtUtil.generateToken(request.getEpicNumber());
+            String constituencyId = voterService.getConstituencyId(request.getEpicNumber());
             return ResponseEntity.ok(
-                    new LoginResponseDto(true, "Login successful.", token)
+                    new LoginResponseDto(true, "Login successful.", token, constituencyId)
             );
         } else {
             return ResponseEntity.status(401).body(
-                    new LoginResponseDto(false, "Invalid EPIC number or password.", null)
+                    new LoginResponseDto(false, "Invalid EPIC number or password.", null, null)
             );
         }
     }

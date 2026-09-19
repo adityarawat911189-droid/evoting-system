@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+        }
+        .navbar-custom {
+            background: #0d6efd;
+        }
+        .container-main {
+            max-width: 720px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .candidate-card {
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        .status-badge {
+            font-size: 0.85rem;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+        <span class="navbar-brand mb-0 h1">E-Voting System</span>
+        <button id="logoutBtn" class="btn btn-outline-light btn-sm">Logout</button>
+    </div>
+</nav>
+
+<div class="container-main">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h5 class="mb-0">Welcome, <span id="voterEpic"></span></h5>
+            <small class="text-muted">Constituency: <span id="voterConstituency"></span></small>
+        </div>
+        <span id="electionStatusBadge" class="badge status-badge"></span>
+    </div>
+
+    <div id="loadingMsg" class="text-center text-muted my-4">Loading candidates...</div>
+
+    <div id="candidatesList"></div>
+
+    <div id="emptyState" class="empty-state d-none">
+        No candidates found for your constituency yet.
+    </div>
+
+    <div class="d-grid gap-2 mt-3">
+        <button id="voteBtn" class="btn btn-success py-2 d-none">Cast Your Vote</button>
+        <button id="resultsBtn" class="btn btn-outline-primary py-2 d-none">View Results</button>
+    </div>
+</div>
+
+<script>
+    const jwtToken = sessionStorage.getItem('jwtToken');
+    const epicNumber = sessionStorage.getItem('epicNumber');
+    const constituencyId = sessionStorage.getItem('constituencyId');
+
+    if (!jwtToken || !epicNumber || !constituencyId) {
+        window.location.href = 'login.html';
+    }
+
+    document.getElementById('voterEpic').textContent = epicNumber;
+    document.getElementById('voterConstituency').textContent = constituencyId;
+
+    document.getElementById('logoutBtn').addEventListener('click', function () {
+        sessionStorage.clear();
+        window.location.href = 'login.html';
+    });
+
+    async function loadElectionStatus() {
+        try {
+            const response = await fetch(
+                `http://localhost:8080/api/election/status?constituencyId=${constituencyId}`
+            );
+            const status = await response.text();
+
+            const badge = document.getElementById('electionStatusBadge');
+            badge.textContent = status.replace(/"/g, '');
+
+            if (status.includes('ONGOING')) {
+                badge.classList.add('bg-success');
+                document.getElementById('voteBtn').classList.remove('d-none');
+            } else if (status.includes('CLOSED')) {
+                badge.classList.add('bg-secondary');
+                document.getElementById('resultsBtn').classList.remove('d-none');
+            } else {
+                badge.classList.add('bg-warning', 'text-dark');
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    async function loadCandidates() {
+        try {
+            const response = await fetch(
+                `http://localhost:8080/api/candidates?constituencyId=${constituencyId}`
+            );
+            const candidates = await response.json();
+
+            document.getElementById('loadingMsg').classList.add('d-none');
+
+            if (!candidates || candidates.length === 0) {
+                document.getElementById('emptyState').classList.remove('d-none');
+                return;
+            }
+
+            const listDiv = document.getElementById('candidatesList');
+            candidates.forEach(function (c) {
+                const card = document.createElement('div');
+                card.className = 'card candidate-card shadow-sm';
+                card.innerHTML = `
+                    <div class="card-body">
+                        <h6 class="card-title mb-1">${c.name}</h6>
+                        <p class="text-muted mb-2" style="font-size: 0.85rem;">${c.party || 'Independent'}</p>
+                        <p class="card-text" style="font-size: 0.9rem;">${c.manifesto || ''}</p>
+                    </div>
+                `;
+                listDiv.appendChild(card);
+            });
+        } catch (err) {
+            document.getElementById('loadingMsg').textContent = 'Could not load candidates.';
+            console.error(err);
+        }
+    }
+
+    document.getElementById('voteBtn').addEventListener('click', function () {
+        window.location.href = 'vote.html';
+    });
+
+    document.getElementById('resultsBtn').addEventListener('click', function () {
+        window.location.href = 'results.html';
+    });
+
+    loadElectionStatus();
+    loadCandidates();
+</script>
+
+</body>
+</html>

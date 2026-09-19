@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cast Vote - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+        }
+        .navbar-custom {
+            background: #0d6efd;
+        }
+        .container-main {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .candidate-option {
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .candidate-option.selected {
+            border-color: #0d6efd;
+            background: #eaf2ff;
+        }
+        .section-box {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+        <span class="navbar-brand mb-0 h1">E-Voting System</span>
+        <a href="dashboard.html" class="btn btn-outline-light btn-sm">Back</a>
+    </div>
+</nav>
+
+<div class="container-main">
+    <h5 class="mb-3">Select a Candidate</h5>
+
+    <div id="candidatesList"></div>
+
+    <div class="section-box">
+        <label for="pinInput" class="form-label">Enter your Voting PIN</label>
+        <input type="password" class="form-control" id="pinInput" maxlength="6" placeholder="4-6 digit PIN">
+    </div>
+
+    <div id="errorMsg" class="alert alert-danger d-none mt-3" role="alert"></div>
+    <div id="successMsg" class="alert alert-success d-none mt-3" role="alert"></div>
+
+    <button id="castVoteBtn" class="btn btn-success w-100 py-2 mt-3">Verify Fingerprint &amp; Cast Vote</button>
+</div>
+
+<script>
+    const jwtToken = sessionStorage.getItem('jwtToken');
+    const epicNumber = sessionStorage.getItem('epicNumber');
+    const constituencyId = sessionStorage.getItem('constituencyId');
+
+    if (!jwtToken || !epicNumber || !constituencyId) {
+        window.location.href = 'login.html';
+    }
+
+    let selectedCandidateId = null;
+
+    const errorDiv = document.getElementById('errorMsg');
+    const successDiv = document.getElementById('successMsg');
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.classList.remove('d-none');
+        successDiv.classList.add('d-none');
+    }
+
+    function showSuccess(msg) {
+        successDiv.textContent = msg;
+        successDiv.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+    }
+
+    function base64UrlToBuffer(base64Url) {
+        const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+        const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = atob(base64);
+        const buffer = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; i++) buffer[i] = rawData.charCodeAt(i);
+        return buffer;
+    }
+
+    function bufferToBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let str = '';
+        for (const b of bytes) str += String.fromCharCode(b);
+        return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    async function loadCandidates() {
+        const response = await fetch(
+            `http://localhost:8080/api/candidates?constituencyId=${constituencyId}`
+        );
+        const candidates = await response.json();
+
+        const listDiv = document.getElementById('candidatesList');
+        candidates.forEach(function (c) {
+            const div = document.createElement('div');
+            div.className = 'candidate-option';
+            div.dataset.candidateId = c.candidateId;
+            div.innerHTML = `
+                <h6 class="mb-1">${c.name}</h6>
+                <small class="text-muted">${c.party || 'Independent'}</small>
+            `;
+            div.addEventListener('click', function () {
+                document.querySelectorAll('.candidate-option').forEach(function (el) {
+                    el.classList.remove('selected');
+                });
+                div.classList.add('selected');
+                selectedCandidateId = c.candidateId;
+            });
+            listDiv.appendChild(div);
+        });
+    }
+
+    document.getElementById('castVoteBtn').addEventListener('click', async function () {
+        const pin = document.getElementById('pinInput').value.trim();
+
+        if (!selectedCandidateId) {
+            showError('Please select a candidate.');
+            return;
+        }
+        if (!pin) {
+            showError('Please enter your PIN.');
+            return;
+        }
+
+        try {
+            showSuccess('Requesting voting token...');
+
+            const tokenResponse = await fetch('http://localhost:8080/api/vote-token/issue', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + jwtToken }
+            });
+
+            if (!tokenResponse.ok) {
+                showError('Could not get a voting token. You may have already voted, or your session expired.');
+                return;
+            }
+
+            const votingToken = await tokenResponse.text();
+
+            showSuccess('Fetching fingerprint verification...');
+
+            const optionsResponse = await fetch(
+                `http://localhost:8080/api/webauthn/authenticate/options?epicNumber=${epicNumber}`
+            );
+            const options = await optionsResponse.json();
+
+            showSuccess('Waiting for fingerprint...');
+
+            const publicKeyOptions = {
+                challenge: base64UrlToBuffer(options.challenge),
+                rpId: options.rpId,
+                userVerification: "required",
+                timeout: 60000
+            };
+
+            const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
+
+            const credentialId = bufferToBase64Url(assertion.rawId);
+            const authenticatorData = bufferToBase64Url(assertion.response.authenticatorData);
+            const clientDataJSON = bufferToBase64Url(assertion.response.clientDataJSON);
+            const signature = bufferToBase64Url(assertion.response.signature);
+
+            showSuccess('Casting your vote...');
+
+            const voteResponse = await fetch('http://localhost:8080/api/vote/cast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: votingToken,
+                    candidateId: selectedCandidateId,
+                    pin: pin,
+                    credentialId: credentialId,
+                    authenticatorData: authenticatorData,
+                    clientDataJSON: clientDataJSON,
+                    signature: signature
+                })
+            });
+
+            const voteResult = await voteResponse.text();
+
+            if (voteResponse.ok) {
+                showSuccess(voteResult);
+                document.getElementById('castVoteBtn').disabled = true;
+                setTimeout(function () {
+                    window.location.href = 'dashboard.html';
+                }, 2500);
+            } else {
+                showError(voteResult);
+            }
+
+        } catch (err) {
+            showError('Something went wrong: ' + err.message);
+            console.error(err);
+        }
+    });
+
+    loadCandidates();
+</script>
+
+</body>
+</html>

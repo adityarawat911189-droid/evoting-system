@@ -29,6 +29,9 @@ public class SecurityConfig {
                                 "/api/admin/**",
                                 "/face-verify.html",
                                 "/set-credentials.html",
+                                "/dashboard.html",
+                                "/vote.html",
+                                "/login.html",
                                 "/fingerprint-register.html",
                                 "/otp.html",
                                 "/api/candidates/**"

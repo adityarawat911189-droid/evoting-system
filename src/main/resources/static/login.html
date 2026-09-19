@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            max-width: 420px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .brand-title {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card shadow-sm login-card">
+    <h4 class="brand-title text-center mb-1">E-Voting System</h4>
+    <p class="text-center text-muted mb-4">Voter Login</p>
+
+    <form id="loginForm">
+        <div class="mb-3">
+            <label for="epicNumber" class="form-label">EPIC Number</label>
+            <input type="text" class="form-control" id="epicNumber" placeholder="e.g. EVT1000000" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" placeholder="Your password" required>
+        </div>
+
+        <div id="errorMsg" class="alert alert-danger d-none" role="alert"></div>
+
+        <button type="submit" class="btn btn-primary w-100 py-2">Login</button>
+    </form>
+
+    <p class="text-center text-muted mt-3 mb-0" style="font-size: 0.85rem;">
+        Not registered yet? <a href="register.html">Register here</a>
+    </p>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const errorDiv = document.getElementById('errorMsg');
+        errorDiv.classList.add('d-none');
+
+        const epicNumber = document.getElementById('epicNumber').value.trim();
+        const password = document.getElementById('password').value;
+
+        try {
+            const response = await fetch('http://localhost:8080/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber, password })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                sessionStorage.setItem('jwtToken', data.token);
+                sessionStorage.setItem('epicNumber', epicNumber);
+                sessionStorage.setItem('constituencyId', data.constituencyId);
+                window.location.href = 'dashboard.html';
+            } else {
+                errorDiv.textContent = data.message || 'Login failed.';
+                errorDiv.classList.remove('d-none');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Something went wrong. Is the server running?';
+            errorDiv.classList.remove('d-none');
+            console.error(err);
+        }
+    });
+</script>
+
+</body>
+</html>

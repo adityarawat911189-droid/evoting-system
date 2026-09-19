@@ -32,6 +32,8 @@ public class SecurityConfig {
                                 "/dashboard.html",
                                 "/vote.html",
                                 "/login.html",
+                                "/results.html",
+                                "/admin.html",
                                 "/fingerprint-register.html",
                                 "/otp.html",
                                 "/api/candidates/**"

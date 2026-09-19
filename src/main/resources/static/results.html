@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+        }
+        .navbar-custom {
+            background: #0d6efd;
+        }
+        .container-main {
+            max-width: 640px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .result-card {
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+        }
+        .winner-card {
+            border: 2px solid #198754;
+            background: #f0fff4;
+        }
+        .vote-count {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #0d6efd;
+        }
+        .bar-track {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 0.5rem;
+        }
+        .bar-fill {
+            height: 100%;
+            background: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+        <span class="navbar-brand mb-0 h1">E-Voting System</span>
+        <a href="dashboard.html" class="btn btn-outline-light btn-sm">Back</a>
+    </div>
+</nav>
+
+<div class="container-main">
+    <h5 class="mb-3">Election Results</h5>
+    <p class="text-muted mb-4">Constituency: <span id="constituencyLabel"></span></p>
+
+    <div id="loadingMsg" class="text-center text-muted my-4">Loading results...</div>
+    <div id="errorMsg" class="alert alert-warning d-none" role="alert"></div>
+
+    <div id="resultsList"></div>
+
+    <div id="ledgerCheck" class="mt-4 d-none">
+        <button id="verifyLedgerBtn" class="btn btn-outline-secondary w-100">Verify Ledger Integrity</button>
+        <div id="ledgerResult" class="alert mt-2 d-none"></div>
+    </div>
+</div>
+
+<script>
+    const constituencyId = sessionStorage.getItem('constituencyId') || 'MP-BHOPAL-01';
+    document.getElementById('constituencyLabel').textContent = constituencyId;
+
+    async function loadResults() {
+        try {
+            const response = await fetch(
+                `http://localhost:8080/api/results?constituencyId=${constituencyId}`
+            );
+
+            document.getElementById('loadingMsg').classList.add('d-none');
+
+            if (!response.ok) {
+                const errText = await response.text();
+                document.getElementById('errorMsg').textContent = errText;
+                document.getElementById('errorMsg').classList.remove('d-none');
+                return;
+            }
+
+            const results = await response.json();
+
+            if (!results || results.length === 0) {
+                document.getElementById('errorMsg').textContent = 'No results available yet.';
+                document.getElementById('errorMsg').classList.remove('d-none');
+                return;
+            }
+
+            const maxVotes = Math.max(...results.map(r => r.voteCount), 1);
+            const sorted = [...results].sort((a, b) => b.voteCount - a.voteCount);
+            const topVotes = sorted[0].voteCount;
+
+            const listDiv = document.getElementById('resultsList');
+            sorted.forEach(function (r) {
+                const isWinner = r.voteCount === topVotes && topVotes > 0;
+                const percent = (r.voteCount / maxVotes) * 100;
+
+                const card = document.createElement('div');
+                card.className = 'card result-card shadow-sm' + (isWinner ? ' winner-card' : '');
+                card.innerHTML = `
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">${r.candidateName} ${isWinner ? '🏆' : ''}</h6>
+                            </div>
+                            <span class="vote-count">${r.voteCount}</span>
+                        </div>
+                        <div class="bar-track">
+                            <div class="bar-fill" style="width: ${percent}%;"></div>
+                        </div>
+                    </div>
+                `;
+                listDiv.appendChild(card);
+            });
+
+            document.getElementById('ledgerCheck').classList.remove('d-none');
+
+        } catch (err) {
+            document.getElementById('loadingMsg').classList.add('d-none');
+            document.getElementById('errorMsg').textContent = 'Could not load results. Is the server running?';
+            document.getElementById('errorMsg').classList.remove('d-none');
+            console.error(err);
+        }
+    }
+
+    document.getElementById('verifyLedgerBtn').addEventListener('click', async function () {
+        const resultDiv = document.getElementById('ledgerResult');
+        resultDiv.classList.remove('d-none', 'alert-success', 'alert-danger');
+        resultDiv.textContent = 'Checking...';
+        resultDiv.classList.add('alert-secondary');
+
+        try {
+            const response = await fetch('http://localhost:8080/api/vote/verify-ledger');
+            const text = await response.text();
+
+            resultDiv.classList.remove('alert-secondary');
+            resultDiv.classList.add(response.ok ? 'alert-success' : 'alert-danger');
+            resultDiv.textContent = text;
+        } catch (err) {
+            resultDiv.classList.remove('alert-secondary');
+            resultDiv.classList.add('alert-danger');
+            resultDiv.textContent = 'Could not verify ledger.';
+        }
+    });
+
+    loadResults();
+</script>
+
+</body>
+</html>

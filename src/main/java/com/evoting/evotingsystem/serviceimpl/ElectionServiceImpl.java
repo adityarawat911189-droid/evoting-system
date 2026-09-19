@@ -16,6 +16,9 @@ public class ElectionServiceImpl implements ElectionService {
 
     @Override
     public void createElection(String electionId, String constituencyId) {
+        if (electionDao.findByConstituencyId(constituencyId).isPresent()) {
+            return;
+        }
         Election election = new Election();
         election.setElectionId(electionId);
         election.setConstituencyId(constituencyId);

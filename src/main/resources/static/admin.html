@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+        }
+        .navbar-custom {
+            background: #212529;
+        }
+        .container-main {
+            max-width: 640px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .login-card {
+            max-width: 400px;
+            margin: 4rem auto;
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .section-card {
+            border-radius: 10px;
+            margin-bottom: 1.25rem;
+        }
+        .status-pill {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark navbar-custom">
+    <div class="container-fluid px-4">
+        <span class="navbar-brand mb-0 h1">E-Voting Admin</span>
+        <button id="logoutBtn" class="btn btn-outline-light btn-sm d-none">Logout</button>
+    </div>
+</nav>
+
+<div id="loginSection">
+    <div class="card shadow-sm login-card">
+        <h5 class="text-center mb-3">Admin Login</h5>
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" id="adminUsername" value="admin">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" id="adminPassword">
+        </div>
+        <div id="loginError" class="alert alert-danger d-none"></div>
+        <button id="adminLoginBtn" class="btn btn-dark w-100">Login</button>
+    </div>
+</div>
+
+<div id="panelSection" class="container-main d-none">
+
+    <div class="card section-card shadow-sm">
+        <div class="card-body">
+            <h6 class="card-title">Election Control</h6>
+
+            <div class="mb-2">
+                <label class="form-label small">Constituency ID</label>
+                <input type="text" class="form-control form-control-sm" id="constituencyInput" value="MP-BHOPAL-01">
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="text-muted small">Current status:</span>
+                <span id="statusPill" class="badge bg-secondary status-pill">-</span>
+                <button id="refreshStatusBtn" class="btn btn-sm btn-outline-secondary">Refresh</button>
+            </div>
+
+            <div class="row g-2">
+                <div class="col-4">
+                    <button id="createElectionBtn" class="btn btn-outline-primary btn-sm w-100">Create</button>
+                </div>
+                <div class="col-4">
+                    <button id="startElectionBtn" class="btn btn-success btn-sm w-100">Start</button>
+                </div>
+                <div class="col-4">
+                    <button id="closeElectionBtn" class="btn btn-danger btn-sm w-100">Close</button>
+                </div>
+            </div>
+
+            <div id="electionMsg" class="alert mt-3 d-none"></div>
+        </div>
+    </div>
+
+    <div class="card section-card shadow-sm">
+        <div class="card-body">
+            <h6 class="card-title">Add Candidate</h6>
+
+            <div class="mb-2">
+                <input type="text" class="form-control form-control-sm mb-2" id="candIdInput" placeholder="Candidate ID (e.g. CAND004)">
+                <input type="text" class="form-control form-control-sm mb-2" id="candNameInput" placeholder="Full name">
+                <input type="text" class="form-control form-control-sm mb-2" id="candPartyInput" placeholder="Party (optional)">
+                <input type="text" class="form-control form-control-sm mb-2" id="candConstituencyInput" placeholder="Constituency ID" value="MP-BHOPAL-01">
+                <textarea class="form-control form-control-sm mb-2" id="candManifestoInput" placeholder="Manifesto" rows="2"></textarea>
+            </div>
+
+            <button id="addCandidateBtn" class="btn btn-primary btn-sm w-100">Add Candidate</button>
+
+            <div id="candidateMsg" class="alert mt-3 d-none"></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let adminToken = '';
+
+    document.getElementById('adminLoginBtn').addEventListener('click', async function () {
+        const username = document.getElementById('adminUsername').value.trim();
+        const password = document.getElementById('adminPassword').value;
+        const errorDiv = document.getElementById('loginError');
+
+        try {
+            const response = await fetch('http://localhost:8080/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (response.ok) {
+                adminToken = await response.text();
+                document.getElementById('loginSection').classList.add('d-none');
+                document.getElementById('panelSection').classList.remove('d-none');
+                document.getElementById('logoutBtn').classList.remove('d-none');
+                refreshStatus();
+            } else {
+                errorDiv.textContent = 'Invalid admin credentials.';
+                errorDiv.classList.remove('d-none');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Could not reach server.';
+            errorDiv.classList.remove('d-none');
+            console.error(err);
+        }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function () {
+        adminToken = '';
+        document.getElementById('panelSection').classList.add('d-none');
+        document.getElementById('logoutBtn').classList.add('d-none');
+        document.getElementById('loginSection').classList.remove('d-none');
+    });
+
+    function showMsg(elementId, text, isSuccess) {
+        const div = document.getElementById(elementId);
+        div.textContent = text;
+        div.classList.remove('d-none', 'alert-success', 'alert-danger');
+        div.classList.add(isSuccess ? 'alert-success' : 'alert-danger');
+    }
+
+    async function refreshStatus() {
+        const constituencyId = document.getElementById('constituencyInput').value.trim();
+        const response = await fetch(`http://localhost:8080/api/election/status?constituencyId=${constituencyId}`);
+        const status = (await response.text()).replace(/"/g, '');
+
+        const pill = document.getElementById('statusPill');
+        pill.textContent = status;
+        pill.className = 'badge status-pill ' +
+            (status.includes('ONGOING') ? 'bg-success' :
+             status.includes('CLOSED') ? 'bg-secondary' :
+             status.includes('NOT_STARTED') ? 'bg-warning text-dark' : 'bg-light text-dark');
+    }
+
+    document.getElementById('refreshStatusBtn').addEventListener('click', refreshStatus);
+
+    document.getElementById('createElectionBtn').addEventListener('click', async function () {
+        const constituencyId = document.getElementById('constituencyInput').value.trim();
+        const electionId = 'ELEC_' + constituencyId;
+
+        const response = await fetch(
+            `http://localhost:8080/api/election/create?electionId=${electionId}&constituencyId=${constituencyId}`,
+            { method: 'POST', headers: { 'Authorization': 'Bearer ' + adminToken } }
+        );
+        const text = await response.text();
+        showMsg('electionMsg', text, response.ok);
+        refreshStatus();
+    });
+
+    document.getElementById('startElectionBtn').addEventListener('click', async function () {
+        const constituencyId = document.getElementById('constituencyInput').value.trim();
+
+        const response = await fetch(
+            `http://localhost:8080/api/election/start?constituencyId=${constituencyId}`,
+            { method: 'POST', headers: { 'Authorization': 'Bearer ' + adminToken } }
+        );
+        const text = await response.text();
+        showMsg('electionMsg', text, response.ok);
+        refreshStatus();
+    });
+
+    document.getElementById('closeElectionBtn').addEventListener('click', async function () {
+        const constituencyId = document.getElementById('constituencyInput').value.trim();
+
+        const response = await fetch(
+            `http://localhost:8080/api/election/close?constituencyId=${constituencyId}`,
+            { method: 'POST', headers: { 'Authorization': 'Bearer ' + adminToken } }
+        );
+        const text = await response.text();
+        showMsg('electionMsg', text, response.ok);
+        refreshStatus();
+    });
+
+    document.getElementById('addCandidateBtn').addEventListener('click', async function () {
+        const payload = {
+            candidateId: document.getElementById('candIdInput').value.trim(),
+            name: document.getElementById('candNameInput').value.trim(),
+            party: document.getElementById('candPartyInput').value.trim(),
+            constituencyId: document.getElementById('candConstituencyInput').value.trim(),
+            manifesto: document.getElementById('candManifestoInput').value.trim()
+        };
+
+        if (!payload.candidateId || !payload.name || !payload.constituencyId) {
+            showMsg('candidateMsg', 'Candidate ID, name, and constituency are required.', false);
+            return;
+        }
+
+        const response = await fetch('http://localhost:8080/api/candidates/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + adminToken
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const text = await response.text();
+        showMsg('candidateMsg', text, response.ok);
+
+        if (response.ok) {
+            document.getElementById('candIdInput').value = '';
+            document.getElementById('candNameInput').value = '';
+            document.getElementById('candPartyInput').value = '';
+            document.getElementById('candManifestoInput').value = '';
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Verification - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .register-card {
+            max-width: 480px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .step-indicator {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        .brand-title {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        .otp-input {
+            letter-spacing: 0.5rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card shadow-sm register-card">
+    <h4 class="brand-title text-center mb-1">E-Voting System</h4>
+    <p class="text-center text-muted mb-4">Voter Registration</p>
+
+    <div class="step-indicator text-center">Step 2 of 5 &mdash; OTP Verification</div>
+
+    <div id="sendSection">
+        <p class="text-muted">We'll send a one-time code to verify your identity.</p>
+        <div class="mb-3">
+            <label for="emailInput" class="form-label">Email Address</label>
+            <input type="email" class="form-control" id="emailInput" placeholder="you@example.com" required>
+        </div>
+        <button id="sendOtpBtn" class="btn btn-primary w-100 py-2">Send OTP</button>
+    </div>
+
+    <div id="verifySection" class="d-none">
+        <p class="text-muted">Enter the 6-digit code sent to your email.</p>
+        <div class="mb-3">
+            <input type="text" class="form-control otp-input" id="otpInput" maxlength="6" placeholder="------">
+        </div>
+        <button id="verifyOtpBtn" class="btn btn-success w-100 py-2 mb-2">Verify OTP</button>
+        <button id="resendBtn" class="btn btn-link w-100">Resend OTP</button>
+    </div>
+
+    <div id="errorMsg" class="alert alert-danger d-none mt-3" role="alert"></div>
+    <div id="successMsg" class="alert alert-success d-none mt-3" role="alert"></div>
+</div>
+
+<script>
+    const epicNumber = sessionStorage.getItem('reg_epicNumber');
+
+    if (!epicNumber) {
+        window.location.href = 'register.html';
+    }
+
+    const errorDiv = document.getElementById('errorMsg');
+    const successDiv = document.getElementById('successMsg');
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.classList.remove('d-none');
+        successDiv.classList.add('d-none');
+    }
+
+    function showSuccess(msg) {
+        successDiv.textContent = msg;
+        successDiv.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+    }
+
+    async function sendOtp() {
+        const email = document.getElementById('emailInput').value.trim();
+
+        if (!email) {
+            showError('Please enter your email address.');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8080/api/otp/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber: epicNumber, emailOrMobile: email })
+            });
+
+            const data = await response.json();
+
+            if (data.verified) {
+                showSuccess('OTP sent! Check your email.');
+                document.getElementById('sendSection').classList.add('d-none');
+                document.getElementById('verifySection').classList.remove('d-none');
+                sessionStorage.setItem('reg_email', email);
+            } else {
+                showError(data.message || 'Failed to send OTP.');
+            }
+        } catch (err) {
+            showError('Something went wrong. Is the server running?');
+            console.error(err);
+        }
+    }
+
+    document.getElementById('sendOtpBtn').addEventListener('click', sendOtp);
+    document.getElementById('resendBtn').addEventListener('click', sendOtp);
+
+    document.getElementById('verifyOtpBtn').addEventListener('click', async function () {
+        const otp = document.getElementById('otpInput').value.trim();
+
+        if (!otp || otp.length !== 6) {
+            showError('Please enter a valid 6-digit OTP.');
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8080/api/otp/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber: epicNumber, otp: otp })
+            });
+
+            const data = await response.json();
+
+            if (data.verified) {
+                showSuccess('OTP verified! Redirecting to face verification...');
+                setTimeout(function () {
+                    window.location.href = 'face-verify.html';
+                }, 1500);
+            } else {
+                showError(data.message || 'Invalid OTP.');
+            }
+        } catch (err) {
+            showError('Something went wrong.');
+            console.error(err);
+        }
+    });
+</script>
+
+</body>
+</html>

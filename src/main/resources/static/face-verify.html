@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Verification - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+        }
+        .register-card {
+            max-width: 560px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+        }
+        .step-indicator {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        .brand-title {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        #cameraPreview, #capturedPreview, #idPreview {
+            width: 100%;
+            max-height: 240px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #000;
+        }
+        #idPreview {
+            background: #e9ecef;
+        }
+        .section-box {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .section-label {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card shadow-sm register-card">
+    <h4 class="brand-title text-center mb-1">E-Voting System</h4>
+    <p class="text-center text-muted mb-4">Voter Registration</p>
+
+    <div class="step-indicator text-center">Step 3 of 5 &mdash; Face Verification</div>
+
+    <div class="section-box">
+        <div class="section-label">1. Upload Government ID</div>
+        <p class="text-muted small">Upload a clear photo of your Aadhaar Card, PAN Card, or Driving License. Your face must be clearly visible.</p>
+        <input type="file" class="form-control mb-2" id="idFileInput" accept="image/*">
+        <img id="idPreview" class="d-none" alt="Government ID preview">
+    </div>
+
+    <div class="section-box">
+        <div class="section-label">2. Capture Live Selfie</div>
+        <p class="text-muted small">Look straight at the camera in good lighting, then capture.</p>
+
+        <video id="cameraPreview" autoplay playsinline class="mb-2"></video>
+        <img id="capturedPreview" class="d-none mb-2" alt="Captured selfie">
+        <canvas id="captureCanvas" class="d-none"></canvas>
+
+        <button id="startCameraBtn" class="btn btn-outline-primary w-100 mb-2">Start Camera</button>
+        <button id="captureBtn" class="btn btn-primary w-100 mb-2 d-none">Capture Selfie</button>
+        <button id="retakeBtn" class="btn btn-outline-secondary w-100 d-none">Retake</button>
+    </div>
+
+    <div id="errorMsg" class="alert alert-danger d-none" role="alert"></div>
+    <div id="successMsg" class="alert alert-success d-none" role="alert"></div>
+
+    <button id="verifyBtn" class="btn btn-success w-100 py-2">Verify Face Match</button>
+</div>
+
+<script>
+    const epicNumber = sessionStorage.getItem('reg_epicNumber');
+    if (!epicNumber) {
+        window.location.href = 'register.html';
+    }
+
+    const errorDiv = document.getElementById('errorMsg');
+    const successDiv = document.getElementById('successMsg');
+    const video = document.getElementById('cameraPreview');
+    const canvas = document.getElementById('captureCanvas');
+    const capturedPreview = document.getElementById('capturedPreview');
+    const idPreview = document.getElementById('idPreview');
+
+    let cameraStream = null;
+    let capturedBlob = null;
+    let idFile = null;
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.classList.remove('d-none');
+        successDiv.classList.add('d-none');
+    }
+
+    function showSuccess(msg) {
+        successDiv.textContent = msg;
+        successDiv.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+    }
+
+    document.getElementById('idFileInput').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        idFile = file;
+        idPreview.src = URL.createObjectURL(file);
+        idPreview.classList.remove('d-none');
+    });
+
+    document.getElementById('startCameraBtn').addEventListener('click', async function () {
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, facingMode: 'user' }
+            });
+            video.srcObject = cameraStream;
+
+            document.getElementById('startCameraBtn').classList.add('d-none');
+            document.getElementById('captureBtn').classList.remove('d-none');
+        } catch (err) {
+            showError('Could not access camera. Please allow camera permission.');
+            console.error(err);
+        }
+    });
+
+    document.getElementById('captureBtn').addEventListener('click', function () {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(function (blob) {
+            capturedBlob = blob;
+            capturedPreview.src = URL.createObjectURL(blob);
+            capturedPreview.classList.remove('d-none');
+            video.classList.add('d-none');
+
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(function (track) { track.stop(); });
+            }
+
+            document.getElementById('captureBtn').classList.add('d-none');
+            document.getElementById('retakeBtn').classList.remove('d-none');
+        }, 'image/jpeg', 0.92);
+    });
+
+    document.getElementById('retakeBtn').addEventListener('click', async function () {
+        capturedBlob = null;
+        capturedPreview.classList.add('d-none');
+        video.classList.remove('d-none');
+
+        document.getElementById('retakeBtn').classList.add('d-none');
+
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, facingMode: 'user' }
+            });
+            video.srcObject = cameraStream;
+            document.getElementById('captureBtn').classList.remove('d-none');
+        } catch (err) {
+            showError('Could not restart camera.');
+            console.error(err);
+        }
+    });
+
+    document.getElementById('verifyBtn').addEventListener('click', async function () {
+        if (!idFile) {
+            showError('Please upload your government ID photo first.');
+            return;
+        }
+        if (!capturedBlob) {
+            showError('Please capture your live selfie first.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('liveImage', capturedBlob, 'selfie.jpg');
+        formData.append('referenceImage', idFile);
+
+        showSuccess('Verifying face match, please wait...');
+
+        try {
+            const response = await fetch('http://localhost:8080/api/face/verify', {
+                method: 'POST',
+                body: formData
+            });
+
+            const resultText = await response.text();
+
+            if (response.ok) {
+                showSuccess(resultText + ' Redirecting...');
+                setTimeout(function () {
+                    window.location.href = 'set-credentials.html';
+                }, 1500);
+            } else {
+                showError(resultText);
+            }
+        } catch (err) {
+            showError('Something went wrong. Is the server running?');
+            console.error(err);
+        }
+    });
+</script>
+
+</body>
+</html>

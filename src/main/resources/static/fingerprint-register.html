@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fingerprint Setup - E-Voting System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f4f6f9;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .register-card {
+            max-width: 480px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .step-indicator {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        .brand-title {
+            font-weight: 600;
+            color: #0d6efd;
+        }
+        .fingerprint-icon {
+            font-size: 4rem;
+            margin: 1.5rem 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card shadow-sm register-card">
+    <h4 class="brand-title text-center mb-1">E-Voting System</h4>
+    <p class="text-center text-muted mb-4">Voter Registration</p>
+
+    <div class="step-indicator">Step 5 of 5 &mdash; Fingerprint Setup</div>
+
+    <div class="fingerprint-icon">🔐</div>
+
+    <p class="text-muted">
+        Set up fingerprint (or device PIN/Face) authentication.
+        You'll need this every time you cast a vote, along with your voting PIN.
+    </p>
+
+    <div id="errorMsg" class="alert alert-danger d-none" role="alert"></div>
+    <div id="successMsg" class="alert alert-success d-none" role="alert"></div>
+
+    <button id="registerBtn" class="btn btn-primary w-100 py-2">Register Fingerprint</button>
+    <button id="skipBtn" class="btn btn-link w-100 mt-2 text-muted">Skip for now</button>
+</div>
+
+<script>
+    const epicNumber = sessionStorage.getItem('reg_epicNumber');
+    if (!epicNumber) {
+        window.location.href = 'register.html';
+    }
+
+    const errorDiv = document.getElementById('errorMsg');
+    const successDiv = document.getElementById('successMsg');
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.classList.remove('d-none');
+        successDiv.classList.add('d-none');
+    }
+
+    function showSuccess(msg) {
+        successDiv.textContent = msg;
+        successDiv.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+    }
+
+    function base64UrlToBuffer(base64Url) {
+        const padding = '='.repeat((4 - base64Url.length % 4) % 4);
+        const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = atob(base64);
+        const buffer = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; i++) buffer[i] = rawData.charCodeAt(i);
+        return buffer;
+    }
+
+    function bufferToBase64Url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let str = '';
+        for (const b of bytes) str += String.fromCharCode(b);
+        return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    document.getElementById('registerBtn').addEventListener('click', async function () {
+        try {
+            showSuccess('Preparing fingerprint setup...');
+
+            const optionsResponse = await fetch(
+                `http://localhost:8080/api/webauthn/register/options?epicNumber=${epicNumber}`
+            );
+            const options = await optionsResponse.json();
+
+            showSuccess('Follow the prompt on your device...');
+
+            const publicKeyOptions = {
+                challenge: base64UrlToBuffer(options.challenge),
+                rp: { name: options.rpName, id: options.rpId },
+                user: {
+                    id: base64UrlToBuffer(bufferToBase64Url(new TextEncoder().encode(epicNumber))),
+                    name: options.userName,
+                    displayName: options.userName
+                },
+                pubKeyCredParams: [
+                    { type: "public-key", alg: -7 },
+                    { type: "public-key", alg: -257 }
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform",
+                    userVerification: "required"
+                },
+                timeout: 60000,
+                attestation: "direct"
+            };
+
+            const credential = await navigator.credentials.create({ publicKey: publicKeyOptions });
+
+            const credentialId = bufferToBase64Url(credential.rawId);
+            const attestationObject = bufferToBase64Url(credential.response.attestationObject);
+            const clientDataJSON = bufferToBase64Url(credential.response.clientDataJSON);
+
+            showSuccess('Verifying...');
+
+            const verifyResponse = await fetch('http://localhost:8080/api/webauthn/register/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicNumber, credentialId, attestationObject, clientDataJSON })
+            });
+
+            const verifyResult = await verifyResponse.text();
+
+            if (verifyResponse.ok) {
+                showSuccess('Registration complete! Redirecting to login...');
+                sessionStorage.removeItem('reg_epicNumber');
+                sessionStorage.removeItem('reg_email');
+                setTimeout(function () {
+                    window.location.href = 'login.html';
+                }, 1800);
+            } else {
+                showError(verifyResult);
+            }
+
+        } catch (err) {
+            showError('Fingerprint setup failed or was cancelled: ' + err.message);
+            console.error(err);
+        }
+    });
+
+    document.getElementById('skipBtn').addEventListener('click', function () {
+        sessionStorage.removeItem('reg_epicNumber');
+        sessionStorage.removeItem('reg_email');
+        window.location.href = 'login.html';
+    });
+</script>
+
+</body>
+</html>

@@ -27,7 +27,12 @@ public class SecurityConfig {
                                 "/vote_test.html",
                                 "/register.html",
                                 "/api/admin/**",
+                                "/face-verify.html",
+                                "/set-credentials.html",
+                                "/fingerprint-register.html",
+                                "/otp.html",
                                 "/api/candidates/**"
+
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
